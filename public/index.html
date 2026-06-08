@@ -1110,7 +1110,14 @@
     let osdTimer = null;
     let tvMode = false;
 
-    const PROXY_BASE = () => (document.getElementById('server-url').value || 'https://streamr-9n48.onrender.com').replace(/\/$/, '');
+    const PROXY_BASE = () => {
+      const val = document.getElementById('server-url').value.trim() || 'http://localhost:3000';
+      // Force https when the page itself is served over https
+      if (location.protocol === 'https:' && val.startsWith('http:')) {
+        return val.replace('http://', 'https://').replace(/\/$/, '');
+      }
+      return val.replace(/\/$/, '');
+    };
 
     // ══════════════════════════════════════════════════════════
     //  SERVER PING
