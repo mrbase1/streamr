@@ -1,855 +1,1193 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#07090d">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="STREAMR">
-<meta name="description" content="IPTV player with HLS proxy">
-<link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icons/icon-192.png">
-<title>STREAMR</title>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
-<style>
-/* ═══════════════════════════════════════════════
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#07090d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="STREAMR">
+  <meta name="description" content="IPTV player with HLS proxy">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <title>STREAMR</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400;500;600&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet">
+
+  <style>
+    /* ═══════════════════════════════════════════════
    RESET & TOKENS
 ═══════════════════════════════════════════════ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-:root {
-  --bg:          #07090d;
-  --surface:     #0c1018;
-  --card:        #111720;
-  --card-hover:  #16202e;
-  --border:      #1c2735;
-  --border-hi:   #2a3d52;
-  --accent:      #e8b84b;        /* warm amber — TV-friendly, high contrast */
-  --accent-dim:  rgba(232,184,75,.12);
-  --accent2:     #e05252;
-  --text:        #d8e4f0;
-  --muted:       #445566;
-  --muted-hi:    #6a8099;
-  --online:      #4ecb82;
-  --focus-ring:  0 0 0 3px rgba(232,184,75,.55);
+    :root {
+      --bg: #07090d;
+      --surface: #0c1018;
+      --card: #111720;
+      --card-hover: #16202e;
+      --border: #1c2735;
+      --border-hi: #2a3d52;
+      --accent: #e8b84b;
+      /* warm amber — TV-friendly, high contrast */
+      --accent-dim: rgba(232, 184, 75, .12);
+      --accent2: #e05252;
+      --text: #d8e4f0;
+      --muted: #445566;
+      --muted-hi: #6a8099;
+      --online: #4ecb82;
+      --focus-ring: 0 0 0 3px rgba(232, 184, 75, .55);
 
-  --sidebar-w:   300px;
-  --nav-h:       54px;
-  --info-h:      60px;
+      --sidebar-w: 300px;
+      --nav-h: 54px;
+      --info-h: 60px;
 
-  /* TV / large screen overrides via media query */
-  --ch-item-h:   52px;
-  --font-size-base: 14px;
-}
+      /* TV / large screen overrides via media query */
+      --ch-item-h: 52px;
+      --font-size-base: 14px;
+    }
 
-html, body {
-  height: 100%;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Barlow', sans-serif;
-  font-size: var(--font-size-base);
-  -webkit-font-smoothing: antialiased;
-}
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      font-size: var(--font-size-base);
+      -webkit-font-smoothing: antialiased;
+    }
 
-/* ═══════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════
    LAYOUT SHELL
 ═══════════════════════════════════════════════ */
-.shell {
-  display: grid;
-  grid-template-rows: var(--nav-h) 1fr var(--info-h);
-  grid-template-columns: var(--sidebar-w) 1fr;
-  grid-template-areas:
-    "nav     nav"
-    "sidebar player"
-    "sidebar infobar";
-  height: 100dvh;
-  height: 100vh; /* fallback */
-}
+    .shell {
+      display: grid;
+      grid-template-rows: var(--nav-h) 1fr var(--info-h);
+      grid-template-columns: var(--sidebar-w) 1fr;
+      grid-template-areas:
+        "nav     nav"
+        "sidebar player"
+        "sidebar infobar";
+      height: 100dvh;
+      height: 100vh;
+      /* fallback */
+    }
 
-/* ═══════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════
    NAVIGATION BAR
 ═══════════════════════════════════════════════ */
-.nav {
-  grid-area: nav;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 18px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  z-index: 20;
-  position: relative;
-}
-.nav::after {
-  content: '';
-  position: absolute;
-  bottom: -1px; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, var(--accent) 0%, transparent 60%);
-  opacity: .4;
-}
+    .nav {
+      grid-area: nav;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 18px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 20;
+      position: relative;
+    }
 
-.logo {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700;
-  font-size: 20px;
-  letter-spacing: 4px;
-  color: var(--text);
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-.logo em { color: var(--accent); font-style: normal; }
+    .nav::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, var(--accent) 0%, transparent 60%);
+      opacity: .4;
+    }
 
-.server-config {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 4px 4px 10px;
-  flex: 1;
-  max-width: 420px;
-}
-.server-config input {
-  flex: 1;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
-}
-.server-config input::placeholder { color: var(--muted); }
-.btn-sm {
-  padding: 5px 12px;
-  border-radius: 4px;
-  border: none;
-  background: var(--accent);
-  color: #000;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: opacity .15s;
-  flex-shrink: 0;
-}
-.btn-sm:hover { opacity: .85; }
-.btn-sm:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .logo {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: 4px;
+      color: var(--text);
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
 
-.nav-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
-  color: var(--muted-hi);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-.dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--muted);
-  transition: background .3s;
-  flex-shrink: 0;
-}
-.dot.online  { background: var(--online); animation: pulse 2s infinite; }
-.dot.error   { background: var(--accent2); }
-@keyframes pulse {
-  0%,100% { box-shadow: 0 0 0 0 rgba(78,203,130,.4); }
-  50%     { box-shadow: 0 0 0 5px rgba(78,203,130,0); }
-}
+    .logo em {
+      color: var(--accent);
+      font-style: normal;
+    }
 
-.nav-actions { display: flex; gap: 8px; margin-left: auto; }
-.icon-btn {
-  width: 34px; height: 34px;
-  border-radius: 6px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  color: var(--muted-hi);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: all .15s;
-  flex-shrink: 0;
-}
-.icon-btn:hover  { border-color: var(--accent); color: var(--accent); }
-.icon-btn:focus-visible { outline:none; box-shadow: var(--focus-ring); }
+    .server-config {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 4px 4px 10px;
+      flex: 1;
+      max-width: 420px;
+    }
 
-/* ═══════════════════════════════════════════════
+    .server-config input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+    }
+
+    .server-config input::placeholder {
+      color: var(--muted);
+    }
+
+    .btn-sm {
+      padding: 5px 12px;
+      border-radius: 4px;
+      border: none;
+      background: var(--accent);
+      color: #000;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: opacity .15s;
+      flex-shrink: 0;
+    }
+
+    .btn-sm:hover {
+      opacity: .85;
+    }
+
+    .btn-sm:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    .nav-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--muted-hi);
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .3s;
+      flex-shrink: 0;
+    }
+
+    .dot.online {
+      background: var(--online);
+      animation: pulse 2s infinite;
+    }
+
+    .dot.error {
+      background: var(--accent2);
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(78, 203, 130, .4);
+      }
+
+      50% {
+        box-shadow: 0 0 0 5px rgba(78, 203, 130, 0);
+      }
+    }
+
+    .nav-actions {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted-hi);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .icon-btn:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    /* ═══════════════════════════════════════════════
    SIDEBAR
 ═══════════════════════════════════════════════ */
-.sidebar {
-  grid-area: sidebar;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
+    .sidebar {
+      grid-area: sidebar;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
-/* M3U URL input section */
-.m3u-section {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.m3u-row {
-  display: flex;
-  gap: 6px;
-}
-.m3u-row input {
-  flex: 1;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 7px 10px;
-  color: var(--text);
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
-  outline: none;
-  transition: border-color .2s;
-}
-.m3u-row input:focus { border-color: var(--accent); }
-.m3u-row input::placeholder { color: var(--muted); }
+    /* M3U URL input section */
+    .m3u-section {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
 
-.btn-demo {
-  width: 100%;
-  padding: 7px;
-  background: var(--accent-dim);
-  border: 1px solid rgba(232,184,75,.2);
-  border-radius: 5px;
-  color: var(--accent);
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: background .2s;
-  text-align: center;
-}
-.btn-demo:hover { background: rgba(232,184,75,.2); }
-.btn-demo:focus-visible { outline:none; box-shadow: var(--focus-ring); }
+    .m3u-row {
+      display: flex;
+      gap: 6px;
+    }
 
-/* Search */
-.search-row {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  position: relative;
-}
-.search-row svg {
-  position: absolute;
-  left: 22px; top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-.search-row input {
-  width: 100%;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 8px 10px 8px 32px;
-  color: var(--text);
-  font-family: 'Barlow', sans-serif;
-  font-size: 13px;
-  outline: none;
-  transition: border-color .2s;
-}
-.search-row input:focus { border-color: var(--accent); }
-.search-row input::placeholder { color: var(--muted); }
+    .m3u-row input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      outline: none;
+      transition: border-color .2s;
+    }
 
-/* Group tabs */
-.group-scroll {
-  display: flex;
-  gap: 5px;
-  padding: 7px 12px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--border);
-  scrollbar-width: none;
-}
-.group-scroll::-webkit-scrollbar { display: none; }
-.g-tab {
-  flex-shrink: 0;
-  padding: 4px 11px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--muted-hi);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all .15s;
-  white-space: nowrap;
-  font-family: 'Barlow Condensed', sans-serif;
-  letter-spacing: .5px;
-}
-.g-tab:hover  { border-color: var(--accent); color: var(--accent); }
-.g-tab.active { background: var(--accent-dim); border-color: rgba(232,184,75,.4); color: var(--accent); }
-.g-tab:focus-visible { outline:none; box-shadow: var(--focus-ring); }
+    .m3u-row input:focus {
+      border-color: var(--accent);
+    }
 
-/* Channel list */
-.ch-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px;
-}
-.ch-list::-webkit-scrollbar { width: 3px; }
-.ch-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .m3u-row input::placeholder {
+      color: var(--muted);
+    }
 
-.ch-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  height: var(--ch-item-h);
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all .12s;
-  margin-bottom: 2px;
-}
-.ch-item:hover  { background: var(--card-hover); border-color: var(--border); }
-.ch-item.active { background: var(--accent-dim); border-color: rgba(232,184,75,.3); }
-.ch-item:focus-visible { outline:none; box-shadow: var(--focus-ring); }
+    .btn-demo {
+      width: 100%;
+      padding: 7px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(232, 184, 75, .2);
+      border-radius: 5px;
+      color: var(--accent);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: background .2s;
+      text-align: center;
+    }
 
-/* TV focused state — extra prominent */
-.tv-mode .ch-item:focus { background: var(--accent-dim); border-color: var(--accent); outline:none; }
+    .btn-demo:hover {
+      background: rgba(232, 184, 75, .2);
+    }
 
-.ch-logo {
-  width: 40px; height: 28px;
-  border-radius: 4px;
-  background: var(--card);
-  flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-}
-.ch-logo img { width:100%; height:100%; object-fit:contain; }
-.ch-logo-txt {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--muted-hi);
-  letter-spacing: .5px;
-}
-.ch-info { flex: 1; min-width: 0; }
-.ch-name {
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text);
-}
-.ch-group {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ch-num {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  color: var(--muted);
-  flex-shrink: 0;
-}
+    .btn-demo:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 10px;
-  padding: 20px;
-  text-align: center;
-}
-.empty-state .icon { font-size: 34px; opacity: .18; }
-.empty-state p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    /* Search */
+    .search-row {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
 
-/* ═══════════════════════════════════════════════
+    .search-row svg {
+      position: absolute;
+      left: 22px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .search-row input {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px 10px 8px 32px;
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .search-row input:focus {
+      border-color: var(--accent);
+    }
+
+    .search-row input::placeholder {
+      color: var(--muted);
+    }
+
+    /* Group tabs */
+    .group-scroll {
+      display: flex;
+      gap: 5px;
+      padding: 7px 12px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border);
+      scrollbar-width: none;
+    }
+
+    .group-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .g-tab {
+      flex-shrink: 0;
+      padding: 4px 11px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--muted-hi);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .15s;
+      white-space: nowrap;
+      font-family: 'Barlow Condensed', sans-serif;
+      letter-spacing: .5px;
+    }
+
+    .g-tab:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .g-tab.active {
+      background: var(--accent-dim);
+      border-color: rgba(232, 184, 75, .4);
+      color: var(--accent);
+    }
+
+    .g-tab:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    /* Channel list */
+    .ch-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+    }
+
+    .ch-list::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .ch-list::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    .ch-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 10px;
+      height: var(--ch-item-h);
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all .12s;
+      margin-bottom: 2px;
+    }
+
+    .ch-item:hover {
+      background: var(--card-hover);
+      border-color: var(--border);
+    }
+
+    .ch-item.active {
+      background: var(--accent-dim);
+      border-color: rgba(232, 184, 75, .3);
+    }
+
+    .ch-item:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    /* TV focused state — extra prominent */
+    .tv-mode .ch-item:focus {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      outline: none;
+    }
+
+    .ch-logo {
+      width: 40px;
+      height: 28px;
+      border-radius: 4px;
+      background: var(--card);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .ch-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .ch-logo-txt {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted-hi);
+      letter-spacing: .5px;
+    }
+
+    .ch-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .ch-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+
+    .ch-group {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ch-num {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .empty-state .icon {
+      font-size: 34px;
+      opacity: .18;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ═══════════════════════════════════════════════
    PLAYER
 ═══════════════════════════════════════════════ */
-.player-wrap {
-  grid-area: player;
-  position: relative;
-  background: #000;
-  overflow: hidden;
-}
-video {
-  width: 100%; height: 100%;
-  object-fit: contain;
-  display: block;
-}
+    .player-wrap {
+      grid-area: player;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
 
-/* Idle overlay */
-.idle {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 14px;
-  background: var(--bg);
-  transition: opacity .3s;
-}
-.idle.gone { opacity:0; pointer-events:none; }
-.idle-graphic {
-  position: relative;
-  width: 80px; height: 80px;
-  display: flex; align-items:center; justify-content:center;
-}
-.idle-ring {
-  position: absolute; inset:0;
-  border-radius: 50%;
-  border: 1px solid rgba(232,184,75,.15);
-  animation: ring-expand 3s ease-out infinite;
-}
-.idle-ring:nth-child(2) { animation-delay: 1s; }
-.idle-ring:nth-child(3) { animation-delay: 2s; }
-@keyframes ring-expand {
-  0%   { transform: scale(.4); opacity:.8; }
-  100% { transform: scale(1.6); opacity:0; }
-}
-.idle-icon-inner { font-size: 32px; z-index:1; opacity:.3; }
-.idle-label { font-family:'Barlow Condensed',sans-serif; font-size:16px; letter-spacing:3px; color:var(--muted); }
-.idle-hint  { font-size:12px; color:var(--muted); opacity:.6; }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
 
-/* Spinner */
-.spinner {
-  position:absolute; inset:0; display:none;
-  align-items:center; justify-content:center;
-  background: rgba(0,0,0,.55);
-}
-.spinner.show { display:flex; }
-.spin-outer {
-  width: 48px; height: 48px;
-  border-radius: 50%;
-  border: 2px solid rgba(232,184,75,.1);
-  border-top-color: var(--accent);
-  animation: spin .7s linear infinite;
-}
-@keyframes spin { to { transform:rotate(360deg); } }
+    /* Idle overlay */
+    .idle {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: var(--bg);
+      transition: opacity .3s;
+    }
 
-/* Error overlay */
-.err-overlay {
-  position: absolute; inset: 0; display: none;
-  flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px;
-  background: rgba(0,0,0,.75);
-}
-.err-overlay.show { display:flex; }
-.err-code { font-family:'Barlow Condensed',sans-serif; font-size:48px; font-weight:700; color:var(--accent2); opacity:.4; }
-.err-msg  { font-size:14px; color:var(--accent2); }
-.err-hint { font-size:12px; color:var(--muted-hi); text-align:center; max-width:340px; line-height:1.6; }
-.err-retry {
-  margin-top: 8px;
-  padding: 8px 20px;
-  border-radius: 5px;
-  background: rgba(224,82,82,.15);
-  border: 1px solid rgba(224,82,82,.3);
-  color: var(--accent2);
-  font-family: 'Barlow Condensed',sans-serif;
-  font-size: 14px; letter-spacing:1px;
-  cursor:pointer;
-  transition: background .2s;
-}
-.err-retry:hover { background:rgba(224,82,82,.25); }
+    .idle.gone {
+      opacity: 0;
+      pointer-events: none;
+    }
 
-/* Channel OSD (on-screen display) — appears briefly on channel change */
-.osd {
-  position: absolute;
-  top: 18px; left: 18px;
-  background: rgba(7,9,13,.85);
-  border: 1px solid var(--border-hi);
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  padding: 10px 16px;
-  display: flex; align-items: center; gap: 12px;
-  backdrop-filter: blur(8px);
-  transition: opacity .4s;
-  opacity: 0; pointer-events: none;
-}
-.osd.visible { opacity:1; }
-.osd-num { font-family:'Share Tech Mono',monospace; font-size:22px; color:var(--accent); }
-.osd-name { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:600; letter-spacing:.5px; }
-.osd-group { font-size:11px; color:var(--muted-hi); margin-top:2px; }
+    .idle-graphic {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-/* ═══════════════════════════════════════════════
+    .idle-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1px solid rgba(232, 184, 75, .15);
+      animation: ring-expand 3s ease-out infinite;
+    }
+
+    .idle-ring:nth-child(2) {
+      animation-delay: 1s;
+    }
+
+    .idle-ring:nth-child(3) {
+      animation-delay: 2s;
+    }
+
+    @keyframes ring-expand {
+      0% {
+        transform: scale(.4);
+        opacity: .8;
+      }
+
+      100% {
+        transform: scale(1.6);
+        opacity: 0;
+      }
+    }
+
+    .idle-icon-inner {
+      font-size: 32px;
+      z-index: 1;
+      opacity: .3;
+    }
+
+    .idle-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px;
+      letter-spacing: 3px;
+      color: var(--muted);
+    }
+
+    .idle-hint {
+      font-size: 12px;
+      color: var(--muted);
+      opacity: .6;
+    }
+
+    /* Spinner */
+    .spinner {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, .55);
+    }
+
+    .spinner.show {
+      display: flex;
+    }
+
+    .spin-outer {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid rgba(232, 184, 75, .1);
+      border-top-color: var(--accent);
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Error overlay */
+    .err-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, .75);
+    }
+
+    .err-overlay.show {
+      display: flex;
+    }
+
+    .err-code {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--accent2);
+      opacity: .4;
+    }
+
+    .err-msg {
+      font-size: 14px;
+      color: var(--accent2);
+    }
+
+    .err-hint {
+      font-size: 12px;
+      color: var(--muted-hi);
+      text-align: center;
+      max-width: 340px;
+      line-height: 1.6;
+    }
+
+    .err-retry {
+      margin-top: 8px;
+      padding: 8px 20px;
+      border-radius: 5px;
+      background: rgba(224, 82, 82, .15);
+      border: 1px solid rgba(224, 82, 82, .3);
+      color: var(--accent2);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .err-retry:hover {
+      background: rgba(224, 82, 82, .25);
+    }
+
+    /* Channel OSD (on-screen display) — appears briefly on channel change */
+    .osd {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      background: rgba(7, 9, 13, .85);
+      border: 1px solid var(--border-hi);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      backdrop-filter: blur(8px);
+      transition: opacity .4s;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .osd.visible {
+      opacity: 1;
+    }
+
+    .osd-num {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 22px;
+      color: var(--accent);
+    }
+
+    .osd-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: .5px;
+    }
+
+    .osd-group {
+      font-size: 11px;
+      color: var(--muted-hi);
+      margin-top: 2px;
+    }
+
+    /* ═══════════════════════════════════════════════
    INFO BAR
 ═══════════════════════════════════════════════ */
-.infobar {
-  grid-area: infobar;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 18px;
-  overflow: hidden;
-}
-.now-label {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--accent);
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-.now-name  { font-size: 14px; font-weight: 600; white-space:nowrap; }
-.now-group { font-size: 11px; color: var(--muted-hi); margin-top:1px; }
-.infobar-url {
-  margin-left: auto;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 380px;
-  padding: 3px 8px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-.kbd-hint {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  color: var(--muted);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-kbd {
-  display: inline-block;
-  padding: 1px 5px;
-  border: 1px solid var(--border-hi);
-  border-radius: 3px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  background: var(--card);
-  color: var(--muted-hi);
-}
+    .infobar {
+      grid-area: infobar;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 18px;
+      overflow: hidden;
+    }
 
-/* ═══════════════════════════════════════════════
+    .now-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--accent);
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .now-name {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .now-group {
+      font-size: 11px;
+      color: var(--muted-hi);
+      margin-top: 1px;
+    }
+
+    .infobar-url {
+      margin-left: auto;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 380px;
+      padding: 3px 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+
+    .kbd-hint {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      border: 1px solid var(--border-hi);
+      border-radius: 3px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      background: var(--card);
+      color: var(--muted-hi);
+    }
+
+    /* ═══════════════════════════════════════════════
    FULLSCREEN SIDEBAR OVERLAY (mobile/TV)
 ═══════════════════════════════════════════════ */
-.sidebar-overlay {
-  display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.6);
-  z-index: 30;
-  backdrop-filter: blur(4px);
-}
-.sidebar-overlay.open { display:block; }
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .6);
+      z-index: 30;
+      backdrop-filter: blur(4px);
+    }
 
-/* ═══════════════════════════════════════════════
+    .sidebar-overlay.open {
+      display: block;
+    }
+
+    /* ═══════════════════════════════════════════════
    RESPONSIVE — TABLET/MOBILE
 ═══════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  :root { --sidebar-w: 100%; }
+    @media (max-width: 768px) {
+      :root {
+        --sidebar-w: 100%;
+      }
 
-  .shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: var(--nav-h) 1fr var(--info-h);
-    grid-template-areas:
-      "nav"
-      "player"
-      "infobar";
-  }
+      .shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: var(--nav-h) 1fr var(--info-h);
+        grid-template-areas:
+          "nav"
+          "player"
+          "infobar";
+      }
 
-  .sidebar {
-    position: fixed;
-    top: 0; left: 0; bottom: 0;
-    width: min(340px, 88vw);
-    z-index: 40;
-    transform: translateX(-100%);
-    transition: transform .25s ease;
-    box-shadow: 4px 0 30px rgba(0,0,0,.6);
-  }
-  .sidebar.open { transform: translateX(0); }
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(340px, 88vw);
+        z-index: 40;
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+        box-shadow: 4px 0 30px rgba(0, 0, 0, .6);
+      }
 
-  .server-config { max-width: none; }
-  .infobar-url   { display: none; }
-  .kbd-hint      { display: none; }
-}
+      .sidebar.open {
+        transform: translateX(0);
+      }
 
-/* ═══════════════════════════════════════════════
+      .server-config {
+        max-width: none;
+      }
+
+      .infobar-url {
+        display: none;
+      }
+
+      .kbd-hint {
+        display: none;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════
    TV / LARGE SCREEN
 ═══════════════════════════════════════════════ */
-@media (min-width: 1600px) {
-  :root {
-    --sidebar-w: 340px;
-    --nav-h: 60px;
-    --info-h: 68px;
-    --ch-item-h: 58px;
-    --font-size-base: 15px;
-  }
-  .ch-name  { font-size: 15px; }
-  .ch-group { font-size: 12px; }
-  .logo     { font-size: 22px; }
-  .osd-num  { font-size: 28px; }
-  .osd-name { font-size: 22px; }
-}
+    @media (min-width: 1600px) {
+      :root {
+        --sidebar-w: 340px;
+        --nav-h: 60px;
+        --info-h: 68px;
+        --ch-item-h: 58px;
+        --font-size-base: 15px;
+      }
 
-/* ═══════════════════════════════════════════════
+      .ch-name {
+        font-size: 15px;
+      }
+
+      .ch-group {
+        font-size: 12px;
+      }
+
+      .logo {
+        font-size: 22px;
+      }
+
+      .osd-num {
+        font-size: 28px;
+      }
+
+      .osd-name {
+        font-size: 22px;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════
    LOADING BAR (top of player)
 ═══════════════════════════════════════════════ */
-.load-bar {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: var(--accent);
-  transform-origin: left;
-  transform: scaleX(0);
-  transition: transform .3s, opacity .3s;
-  opacity: 0;
-}
-.load-bar.loading {
-  opacity: 1;
-  animation: load-anim 1.5s ease-in-out infinite;
-}
-@keyframes load-anim {
-  0%   { transform: scaleX(0); opacity:1; }
-  60%  { transform: scaleX(.8); opacity:1; }
-  100% { transform: scaleX(1); opacity:0; }
-}
+    .load-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+      transform-origin: left;
+      transform: scaleX(0);
+      transition: transform .3s, opacity .3s;
+      opacity: 0;
+    }
 
-/* ═══════════════════════════════════════════════
+    .load-bar.loading {
+      opacity: 1;
+      animation: load-anim 1.5s ease-in-out infinite;
+    }
+
+    @keyframes load-anim {
+      0% {
+        transform: scaleX(0);
+        opacity: 1;
+      }
+
+      60% {
+        transform: scaleX(.8);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scaleX(1);
+        opacity: 0;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════
    FILE INPUT (hidden)
 ═══════════════════════════════════════════════ */
-#file-input { display:none; }
-</style>
+    #file-input {
+      display: none;
+    }
+  </style>
 </head>
+
 <body>
 
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
-<input type="file" id="file-input" accept=".m3u,.m3u8">
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+  <input type="file" id="file-input" accept=".m3u,.m3u8">
 
-<div class="shell" id="shell">
+  <div class="shell" id="shell">
 
-  <!-- ══ NAV ══ -->
-  <nav class="nav">
-    <div class="logo">STREAM<em>R</em></div>
+    <!-- ══ NAV ══ -->
+    <nav class="nav">
+      <div class="logo">STREAM<em>R</em></div>
 
-    <div class="server-config">
-      <input type="text" id="server-url" placeholder="http://localhost:3000" value="http://localhost:3000">
-      <button class="btn-sm" onclick="pingServer()" id="ping-btn">CONNECT</button>
-    </div>
-
-    <div class="nav-status">
-      <div class="dot" id="status-dot"></div>
-      <span id="status-text">Not connected</span>
-    </div>
-
-    <div class="nav-actions">
-      <!-- Menu toggle (mobile/TV) -->
-      <button class="icon-btn" id="menu-btn" onclick="toggleSidebar()" title="Channels [M]" aria-label="Toggle channel list">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="6"  x2="21" y2="6"/>
-          <line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>
-      </button>
-      <!-- Upload M3U file -->
-      <button class="icon-btn" onclick="document.getElementById('file-input').click()" title="Load M3U file" aria-label="Load M3U file">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-      </button>
-      <!-- Fullscreen -->
-      <button class="icon-btn" onclick="toggleFullscreen()" title="Fullscreen [F]" aria-label="Toggle fullscreen">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
-          <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
-        </svg>
-      </button>
-    </div>
-  </nav>
-
-  <!-- ══ SIDEBAR ══ -->
-  <aside class="sidebar" id="sidebar">
-
-    <div class="m3u-section">
-      <div class="m3u-row">
-        <input type="text" id="m3u-url" placeholder="Paste M3U playlist URL…">
-        <button class="btn-sm" onclick="loadM3UFromServer()">LOAD</button>
+      <div class="server-config">
+        <input type="text" id="server-url" placeholder="https://streamr-9n48.onrender.com"
+          value="https://streamr-9n48.onrender.com">
+        <button class="btn-sm" onclick="pingServer()" id="ping-btn">CONNECT</button>
       </div>
-      <button class="btn-demo" onclick="loadDemo()">⚡ LOAD DEMO CHANNELS</button>
-    </div>
 
-    <div class="search-row">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#445566" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input type="text" id="search" placeholder="Search channels…" oninput="filterChannels()" aria-label="Search channels">
-    </div>
+      <div class="nav-status">
+        <div class="dot" id="status-dot"></div>
+        <span id="status-text">Not connected</span>
+      </div>
 
-    <div class="group-scroll" id="group-scroll" role="tablist"></div>
+      <div class="nav-actions">
+        <!-- Menu toggle (mobile/TV) -->
+        <button class="icon-btn" id="menu-btn" onclick="toggleSidebar()" title="Channels [M]"
+          aria-label="Toggle channel list">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <!-- Upload M3U file -->
+        <button class="icon-btn" onclick="document.getElementById('file-input').click()" title="Load M3U file"
+          aria-label="Load M3U file">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </button>
+        <!-- Fullscreen -->
+        <button class="icon-btn" onclick="toggleFullscreen()" title="Fullscreen [F]" aria-label="Toggle fullscreen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 3 21 3 21 9" />
+            <polyline points="9 21 3 21 3 15" />
+            <line x1="21" y1="3" x2="14" y2="10" />
+            <line x1="3" y1="21" x2="10" y2="14" />
+          </svg>
+        </button>
+      </div>
+    </nav>
 
-    <div class="ch-list" id="ch-list" role="listbox" aria-label="Channel list">
-      <div class="empty-state">
-        <div class="icon">📡</div>
-        <p>No channels loaded.<br>Enter your server URL, then load an M3U playlist.</p>
+    <!-- ══ SIDEBAR ══ -->
+    <aside class="sidebar" id="sidebar">
+
+      <div class="m3u-section">
+        <div class="m3u-row">
+          <input type="text" id="m3u-url" placeholder="Paste M3U playlist URL…">
+          <button class="btn-sm" onclick="loadM3UFromServer()">LOAD</button>
+        </div>
+        <button class="btn-demo" onclick="loadDemo()">⚡ LOAD DEMO CHANNELS</button>
+      </div>
+
+      <div class="search-row">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#445566" stroke-width="2">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input type="text" id="search" placeholder="Search channels…" oninput="filterChannels()"
+          aria-label="Search channels">
+      </div>
+
+      <div class="group-scroll" id="group-scroll" role="tablist"></div>
+
+      <div class="ch-list" id="ch-list" role="listbox" aria-label="Channel list">
+        <div class="empty-state">
+          <div class="icon">📡</div>
+          <p>No channels loaded.<br>Enter your server URL, then load an M3U playlist.</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ══ PLAYER ══ -->
+    <div class="player-wrap" id="player-wrap">
+      <video id="video" controls playsinline></video>
+      <div class="load-bar" id="load-bar"></div>
+
+      <!-- Idle screen -->
+      <div class="idle" id="idle">
+        <div class="idle-graphic">
+          <div class="idle-ring"></div>
+          <div class="idle-ring"></div>
+          <div class="idle-ring"></div>
+          <div class="idle-icon-inner">📺</div>
+        </div>
+        <div class="idle-label">NO SIGNAL</div>
+        <div class="idle-hint">Select a channel to begin</div>
+      </div>
+
+      <!-- Spinner -->
+      <div class="spinner" id="spinner">
+        <div class="spin-outer"></div>
+      </div>
+
+      <!-- Error -->
+      <div class="err-overlay" id="err-overlay">
+        <div class="err-code">ERR</div>
+        <div class="err-msg" id="err-msg">Stream unavailable</div>
+        <div class="err-hint" id="err-hint">The stream could not be loaded.</div>
+        <button class="err-retry" onclick="retryChannel()">↺ RETRY</button>
+      </div>
+
+      <!-- OSD -->
+      <div class="osd" id="osd">
+        <div class="osd-num" id="osd-num">001</div>
+        <div>
+          <div class="osd-name" id="osd-name">Channel Name</div>
+          <div class="osd-group" id="osd-group">Group</div>
+        </div>
       </div>
     </div>
-  </aside>
 
-  <!-- ══ PLAYER ══ -->
-  <div class="player-wrap" id="player-wrap">
-    <video id="video" controls playsinline></video>
-    <div class="load-bar" id="load-bar"></div>
-
-    <!-- Idle screen -->
-    <div class="idle" id="idle">
-      <div class="idle-graphic">
-        <div class="idle-ring"></div>
-        <div class="idle-ring"></div>
-        <div class="idle-ring"></div>
-        <div class="idle-icon-inner">📺</div>
-      </div>
-      <div class="idle-label">NO SIGNAL</div>
-      <div class="idle-hint">Select a channel to begin</div>
-    </div>
-
-    <!-- Spinner -->
-    <div class="spinner" id="spinner">
-      <div class="spin-outer"></div>
-    </div>
-
-    <!-- Error -->
-    <div class="err-overlay" id="err-overlay">
-      <div class="err-code">ERR</div>
-      <div class="err-msg" id="err-msg">Stream unavailable</div>
-      <div class="err-hint" id="err-hint">The stream could not be loaded.</div>
-      <button class="err-retry" onclick="retryChannel()">↺ RETRY</button>
-    </div>
-
-    <!-- OSD -->
-    <div class="osd" id="osd">
-      <div class="osd-num" id="osd-num">001</div>
+    <!-- ══ INFO BAR ══ -->
+    <div class="infobar">
+      <div class="now-label">NOW</div>
       <div>
-        <div class="osd-name" id="osd-name">Channel Name</div>
-        <div class="osd-group" id="osd-group">Group</div>
+        <div class="now-name" id="now-name">—</div>
+        <div class="now-group" id="now-group">Select a channel to begin</div>
       </div>
+      <div class="kbd-hint" id="kbd-hint">
+        <kbd>↑</kbd><kbd>↓</kbd> navigate &nbsp;
+        <kbd>Enter</kbd> play &nbsp;
+        <kbd>M</kbd> menu &nbsp;
+        <kbd>F</kbd> fullscreen
+      </div>
+      <div class="infobar-url" id="infobar-url">No stream active</div>
     </div>
+
   </div>
 
-  <!-- ══ INFO BAR ══ -->
-  <div class="infobar">
-    <div class="now-label">NOW</div>
-    <div>
-      <div class="now-name"  id="now-name">—</div>
-      <div class="now-group" id="now-group">Select a channel to begin</div>
-    </div>
-    <div class="kbd-hint" id="kbd-hint">
-      <kbd>↑</kbd><kbd>↓</kbd> navigate &nbsp;
-      <kbd>Enter</kbd> play &nbsp;
-      <kbd>M</kbd> menu &nbsp;
-      <kbd>F</kbd> fullscreen
-    </div>
-    <div class="infobar-url" id="infobar-url">No stream active</div>
-  </div>
+  <script>
+    // ══════════════════════════════════════════════════════════
+    //  STATE
+    // ══════════════════════════════════════════════════════════
+    let allChannels = [];
+    let filtered = [];
+    let currentGroup = 'All';
+    let activeId = -1;
+    let lastActiveId = -1;
+    let hls = null;
+    let osdTimer = null;
+    let tvMode = false;
 
-</div>
+    const PROXY_BASE = () => (document.getElementById('server-url').value || 'https://streamr-9n48.onrender.com').replace(/\/$/, '');
 
-<script>
-// ══════════════════════════════════════════════════════════
-//  STATE
-// ══════════════════════════════════════════════════════════
-let allChannels  = [];
-let filtered     = [];
-let currentGroup = 'All';
-let activeId     = -1;
-let lastActiveId = -1;
-let hls          = null;
-let osdTimer     = null;
-let tvMode       = false;
-
-const PROXY_BASE = () => (document.getElementById('server-url').value || 'http://localhost:3000').replace(/\/$/, '');
-
-// ══════════════════════════════════════════════════════════
-//  SERVER PING
-// ══════════════════════════════════════════════════════════
-async function pingServer() {
-  const dot  = document.getElementById('status-dot');
-  const txt  = document.getElementById('status-text');
-  dot.className = 'dot';
-  txt.textContent = 'Connecting…';
-  try {
-    const res = await fetch(`${PROXY_BASE()}/api/health`, { signal: AbortSignal.timeout(4000) });
-    if (res.ok) {
-      dot.className = 'dot online';
-      txt.textContent = 'Connected';
-    } else {
-      throw new Error(`HTTP ${res.status}`);
+    // ══════════════════════════════════════════════════════════
+    //  SERVER PING
+    // ══════════════════════════════════════════════════════════
+    async function pingServer() {
+      const dot = document.getElementById('status-dot');
+      const txt = document.getElementById('status-text');
+      dot.className = 'dot';
+      txt.textContent = 'Connecting…';
+      try {
+        const res = await fetch(`${PROXY_BASE()}/api/health`, { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          dot.className = 'dot online';
+          txt.textContent = 'Connected';
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (e) {
+        dot.className = 'dot error';
+        txt.textContent = 'Unreachable';
+      }
     }
-  } catch (e) {
-    dot.className = 'dot error';
-    txt.textContent = 'Unreachable';
-  }
-}
 
-// ══════════════════════════════════════════════════════════
-//  M3U — LOAD VIA SERVER PROXY
-// ══════════════════════════════════════════════════════════
-async function loadM3UFromServer() {
-  const url = document.getElementById('m3u-url').value.trim();
-  if (!url) return;
-  setStatus('Fetching playlist…');
-  try {
-    const res  = await fetch(`${PROXY_BASE()}/api/playlist?url=${encodeURIComponent(url)}`);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `Server error ${res.status}`);
+    // ══════════════════════════════════════════════════════════
+    //  M3U — LOAD VIA SERVER PROXY
+    // ══════════════════════════════════════════════════════════
+    async function loadM3UFromServer() {
+      const url = document.getElementById('m3u-url').value.trim();
+      if (!url) return;
+      setStatus('Fetching playlist…');
+      try {
+        const res = await fetch(`${PROXY_BASE()}/api/playlist?url=${encodeURIComponent(url)}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Server error ${res.status}`);
+        }
+        const text = await res.text();
+        const ch = parseM3U(text);
+        if (!ch.length) throw new Error('No channels found in playlist');
+        loadChannels(ch);
+        document.getElementById('m3u-url').value = '';
+      } catch (e) {
+        setStatus('Error: ' + e.message);
+        alert('Could not load playlist:\n' + e.message);
+      }
     }
-    const text = await res.text();
-    const ch   = parseM3U(text);
-    if (!ch.length) throw new Error('No channels found in playlist');
-    loadChannels(ch);
-    document.getElementById('m3u-url').value = '';
-  } catch (e) {
-    setStatus('Error: ' + e.message);
-    alert('Could not load playlist:\n' + e.message);
-  }
-}
 
-// ══════════════════════════════════════════════════════════
-//  M3U — PARSE
-// ══════════════════════════════════════════════════════════
-function parseM3U(text) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const out   = [];
-  let cur     = null;
+    // ══════════════════════════════════════════════════════════
+    //  M3U — PARSE
+    // ══════════════════════════════════════════════════════════
+    function parseM3U(text) {
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const out = [];
+      let cur = null;
 
-  for (const line of lines) {
-    if (line.startsWith('#EXTINF:')) {
-      cur = { name: '', group: 'General', logo: '', url: '' };
-      const ci = line.lastIndexOf(',');
-      if (ci > -1) cur.name = line.slice(ci + 1).trim();
-      const gm = line.match(/group-title="([^"]*)"/i);
-      if (gm) cur.group = gm[1].trim() || 'General';
-      const lm = line.match(/tvg-logo="([^"]*)"/i);
-      if (lm) cur.logo = lm[1].trim();
-    } else if (cur && !line.startsWith('#')) {
-      cur.url = line;
-      out.push(cur);
-      cur = null;
+      for (const line of lines) {
+        if (line.startsWith('#EXTINF:')) {
+          cur = { name: '', group: 'General', logo: '', url: '' };
+          const ci = line.lastIndexOf(',');
+          if (ci > -1) cur.name = line.slice(ci + 1).trim();
+          const gm = line.match(/group-title="([^"]*)"/i);
+          if (gm) cur.group = gm[1].trim() || 'General';
+          const lm = line.match(/tvg-logo="([^"]*)"/i);
+          if (lm) cur.logo = lm[1].trim();
+        } else if (cur && !line.startsWith('#')) {
+          cur.url = line;
+          out.push(cur);
+          cur = null;
+        }
+      }
+      return out;
     }
-  }
-  return out;
-}
 
-// ══════════════════════════════════════════════════════════
-//  DEMO CHANNELS (loaded via proxy — public streams)
-// ══════════════════════════════════════════════════════════
-const DEMO_M3U = `#EXTM3U
+    // ══════════════════════════════════════════════════════════
+    //  DEMO CHANNELS (loaded via proxy — public streams)
+    // ══════════════════════════════════════════════════════════
+    const DEMO_M3U = `#EXTM3U
 #EXTINF:-1 group-title="News" tvg-logo="",BBC World News
 https://vs-hls-push-ww-live.akamaized.net/x=4/i=urn:bbc:pcs:akamai:eu-west-1:5983af87-4638-4a6a-a244-e4935a3aa9af/iptv/bbc_world_news_hd/live/ak/video=5500000.m3u8
 #EXTINF:-1 group-title="News" tvg-logo="",DW English
@@ -865,92 +1203,92 @@ https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8
 #EXTINF:-1 group-title="Kids" tvg-logo="",Baby TV
 https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
 
-function loadDemo() {
-  // When a server is connected, route through proxy; otherwise load direct
-  const ch = parseM3U(DEMO_M3U);
-  // Rewrite URLs to go through proxy if server is connected
-  const dot = document.getElementById('status-dot');
-  if (dot.classList.contains('online')) {
-    const rewritten = ch.map(c => ({
-      ...c,
-      url: `${PROXY_BASE()}/api/stream?url=${encodeURIComponent(c.url)}`,
-    }));
-    loadChannels(rewritten);
-  } else {
-    loadChannels(ch);
-  }
-  setStatus('Demo loaded');
-}
+    function loadDemo() {
+      // When a server is connected, route through proxy; otherwise load direct
+      const ch = parseM3U(DEMO_M3U);
+      // Rewrite URLs to go through proxy if server is connected
+      const dot = document.getElementById('status-dot');
+      if (dot.classList.contains('online')) {
+        const rewritten = ch.map(c => ({
+          ...c,
+          url: `${PROXY_BASE()}/api/stream?url=${encodeURIComponent(c.url)}`,
+        }));
+        loadChannels(rewritten);
+      } else {
+        loadChannels(ch);
+      }
+      setStatus('Demo loaded');
+    }
 
-// ══════════════════════════════════════════════════════════
-//  LOAD / RENDER CHANNELS
-// ══════════════════════════════════════════════════════════
-function loadChannels(channels) {
-  allChannels  = channels.map((c, i) => ({ ...c, id: i }));
-  currentGroup = 'All';
-  activeId     = -1;
-  filterChannels();
-  buildGroupTabs();
-}
+    // ══════════════════════════════════════════════════════════
+    //  LOAD / RENDER CHANNELS
+    // ══════════════════════════════════════════════════════════
+    function loadChannels(channels) {
+      allChannels = channels.map((c, i) => ({ ...c, id: i }));
+      currentGroup = 'All';
+      activeId = -1;
+      filterChannels();
+      buildGroupTabs();
+    }
 
-function buildGroupTabs() {
-  const groups = ['All', ...new Set(allChannels.map(c => c.group))];
-  const el     = document.getElementById('group-scroll');
-  el.innerHTML = '';
-  groups.forEach(g => {
-    const btn = document.createElement('button');
-    btn.className  = 'g-tab' + (g === currentGroup ? ' active' : '');
-    btn.textContent = g;
-    btn.role = 'tab';
-    btn.setAttribute('aria-selected', g === currentGroup);
-    btn.onclick = () => setGroup(g, btn);
-    el.appendChild(btn);
-  });
-}
+    function buildGroupTabs() {
+      const groups = ['All', ...new Set(allChannels.map(c => c.group))];
+      const el = document.getElementById('group-scroll');
+      el.innerHTML = '';
+      groups.forEach(g => {
+        const btn = document.createElement('button');
+        btn.className = 'g-tab' + (g === currentGroup ? ' active' : '');
+        btn.textContent = g;
+        btn.role = 'tab';
+        btn.setAttribute('aria-selected', g === currentGroup);
+        btn.onclick = () => setGroup(g, btn);
+        el.appendChild(btn);
+      });
+    }
 
-function setGroup(g, el) {
-  currentGroup = g;
-  document.querySelectorAll('.g-tab').forEach(t => {
-    t.classList.remove('active');
-    t.setAttribute('aria-selected', 'false');
-  });
-  el.classList.add('active');
-  el.setAttribute('aria-selected', 'true');
-  filterChannels();
-}
+    function setGroup(g, el) {
+      currentGroup = g;
+      document.querySelectorAll('.g-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      el.classList.add('active');
+      el.setAttribute('aria-selected', 'true');
+      filterChannels();
+    }
 
-function filterChannels() {
-  const q = document.getElementById('search').value.toLowerCase();
-  filtered = allChannels.filter(c => {
-    const mg = currentGroup === 'All' || c.group === currentGroup;
-    const ms = !q || c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q);
-    return mg && ms;
-  });
-  renderChannels();
-}
+    function filterChannels() {
+      const q = document.getElementById('search').value.toLowerCase();
+      filtered = allChannels.filter(c => {
+        const mg = currentGroup === 'All' || c.group === currentGroup;
+        const ms = !q || c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q);
+        return mg && ms;
+      });
+      renderChannels();
+    }
 
-function renderChannels() {
-  const list = document.getElementById('ch-list');
-  if (!filtered.length) {
-    list.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No channels match your search.</p></div>`;
-    return;
-  }
-  list.innerHTML = '';
-  filtered.forEach((c, i) => {
-    const div = document.createElement('div');
-    div.className  = 'ch-item' + (c.id === activeId ? ' active' : '');
-    div.role       = 'option';
-    div.tabIndex   = 0;
-    div.setAttribute('aria-selected', c.id === activeId);
-    div.dataset.id = c.id;
+    function renderChannels() {
+      const list = document.getElementById('ch-list');
+      if (!filtered.length) {
+        list.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No channels match your search.</p></div>`;
+        return;
+      }
+      list.innerHTML = '';
+      filtered.forEach((c, i) => {
+        const div = document.createElement('div');
+        div.className = 'ch-item' + (c.id === activeId ? ' active' : '');
+        div.role = 'option';
+        div.tabIndex = 0;
+        div.setAttribute('aria-selected', c.id === activeId);
+        div.dataset.id = c.id;
 
-    const initials = c.name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase() || '?';
-    div.innerHTML = `
+        const initials = c.name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
+        div.innerHTML = `
       <div class="ch-logo">
         ${c.logo
-          ? `<img src="${c.logo}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"><span class="ch-logo-txt" style="display:none">${initials}</span>`
-          : `<span class="ch-logo-txt">${initials}</span>`
-        }
+            ? `<img src="${c.logo}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"><span class="ch-logo-txt" style="display:none">${initials}</span>`
+            : `<span class="ch-logo-txt">${initials}</span>`
+          }
       </div>
       <div class="ch-info">
         <div class="ch-name">${escHtml(c.name)}</div>
@@ -958,277 +1296,278 @@ function renderChannels() {
       </div>
       <div class="ch-num">${String(c.id + 1).padStart(3, '0')}</div>`;
 
-    div.onclick = () => playChannel(c.id);
-    div.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playChannel(c.id); } };
-    list.appendChild(div);
-  });
-}
-
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-// ══════════════════════════════════════════════════════════
-//  PLAYBACK
-// ══════════════════════════════════════════════════════════
-function playChannel(id) {
-  const ch = allChannels.find(c => c.id === id);
-  if (!ch) return;
-
-  lastActiveId = id;
-  activeId     = id;
-  renderChannels();
-  scrollToActive();
-
-  // Update info bar
-  document.getElementById('now-name').textContent  = ch.name;
-  document.getElementById('now-group').textContent = ch.group;
-  document.getElementById('infobar-url').textContent = ch.url.length > 60 ? ch.url.slice(0,57)+'…' : ch.url;
-
-  showOSD(ch, id);
-  showIdle(false);
-  showSpinner(true);
-  showErr(false);
-  showLoadBar(true);
-
-  const video = document.getElementById('video');
-  if (hls) { hls.destroy(); hls = null; }
-
-  const url = ch.url;
-
-  if (Hls.isSupported()) {
-    hls = new Hls({ enableWorker: true, lowLatencyMode: true, maxBufferLength: 30 });
-    hls.loadSource(url);
-    hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      showSpinner(false); showLoadBar(false);
-      video.play().catch(() => {});
-    });
-    hls.on(Hls.Events.ERROR, (_, data) => {
-      if (data.fatal) {
-        showSpinner(false); showLoadBar(false);
-        showErr(true, data.type, getErrHint(data.type));
-      }
-    });
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = url;
-    video.addEventListener('loadedmetadata', () => {
-      showSpinner(false); showLoadBar(false);
-      video.play().catch(() => {});
-    }, { once: true });
-    video.addEventListener('error', () => {
-      showSpinner(false); showLoadBar(false);
-      showErr(true, 'Native error', getErrHint('mediaError'));
-    }, { once: true });
-  } else {
-    showSpinner(false); showLoadBar(false);
-    showErr(true, 'Unsupported', 'HLS is not supported in this browser.');
-  }
-}
-
-function retryChannel() { if (lastActiveId > -1) playChannel(lastActiveId); }
-
-function getErrHint(type) {
-  const m = {
-    networkError: 'Network error — the stream URL may be expired or the server is unreachable.',
-    mediaError:   'Media decode error — the stream format may be unsupported by your browser.',
-  };
-  return m[type] || 'Stream could not be loaded. Try another channel or check your proxy server.';
-}
-
-// ══════════════════════════════════════════════════════════
-//  OSD
-// ══════════════════════════════════════════════════════════
-function showOSD(ch, id) {
-  const osd = document.getElementById('osd');
-  document.getElementById('osd-num').textContent  = String(id + 1).padStart(3, '0');
-  document.getElementById('osd-name').textContent = ch.name;
-  document.getElementById('osd-group').textContent = ch.group;
-  osd.classList.add('visible');
-  clearTimeout(osdTimer);
-  osdTimer = setTimeout(() => osd.classList.remove('visible'), 3200);
-}
-
-// ══════════════════════════════════════════════════════════
-//  UI HELPERS
-// ══════════════════════════════════════════════════════════
-function showIdle(on)         { document.getElementById('idle').classList.toggle('gone', !on); }
-function showSpinner(on)      { document.getElementById('spinner').classList.toggle('show', on); }
-function showLoadBar(on)      { document.getElementById('load-bar').classList.toggle('loading', on); }
-function showErr(on, msg, hint) {
-  const el = document.getElementById('err-overlay');
-  el.classList.toggle('show', on);
-  if (msg)  document.getElementById('err-msg').textContent  = msg;
-  if (hint) document.getElementById('err-hint').textContent = hint;
-}
-function setStatus(msg) {
-  document.getElementById('status-text').textContent = msg;
-}
-function scrollToActive() {
-  const el = document.querySelector('.ch-item.active');
-  if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-}
-
-// ══════════════════════════════════════════════════════════
-//  SIDEBAR TOGGLE (mobile/TV)
-// ══════════════════════════════════════════════════════════
-function toggleSidebar() {
-  const s  = document.getElementById('sidebar');
-  const ov = document.getElementById('sidebar-overlay');
-  const open = s.classList.toggle('open');
-  ov.classList.toggle('open', open);
-  if (open && filtered.length) {
-    const active = document.querySelector('.ch-item.active') || document.querySelector('.ch-item');
-    if (active) setTimeout(() => active.focus(), 50);
-  }
-}
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('open');
-}
-
-// ══════════════════════════════════════════════════════════
-//  FULLSCREEN
-// ══════════════════════════════════════════════════════════
-function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
-  } else {
-    document.exitFullscreen();
-  }
-}
-
-// ══════════════════════════════════════════════════════════
-//  FILE INPUT
-// ══════════════════════════════════════════════════════════
-document.getElementById('file-input').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const ch = parseM3U(ev.target.result);
-    if (!ch.length) { alert('No channels found in this M3U file.'); return; }
-    // Rewrite through proxy if server connected
-    const dot = document.getElementById('status-dot');
-    if (dot.classList.contains('online')) {
-      loadChannels(ch.map(c => ({
-        ...c,
-        url: `${PROXY_BASE()}/api/stream?url=${encodeURIComponent(c.url)}`,
-      })));
-    } else {
-      loadChannels(ch);
+        div.onclick = () => playChannel(c.id);
+        div.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playChannel(c.id); } };
+        list.appendChild(div);
+      });
     }
-    setStatus(`${ch.length} channels loaded`);
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-});
 
-// ══════════════════════════════════════════════════════════
-//  KEYBOARD NAVIGATION
-//  Supports: arrows, Enter, F (fullscreen), M (menu),
-//            TV remote: OK/Select, Back, CH+/CH-
-// ══════════════════════════════════════════════════════════
-document.addEventListener('keydown', e => {
-  const tag = document.activeElement?.tagName;
-  const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
+    function escHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
 
-  switch (e.key) {
+    // ══════════════════════════════════════════════════════════
+    //  PLAYBACK
+    // ══════════════════════════════════════════════════════════
+    function playChannel(id) {
+      const ch = allChannels.find(c => c.id === id);
+      if (!ch) return;
 
-    // ── Channel navigation ───────────────────────────────
-    case 'ArrowUp':
-    case 'ChannelUp':    // TV remote CH+
-      if (inInput) break;
-      e.preventDefault(); stepChannel(-1); break;
+      lastActiveId = id;
+      activeId = id;
+      renderChannels();
+      scrollToActive();
 
-    case 'ArrowDown':
-    case 'ChannelDown':  // TV remote CH-
-      if (inInput) break;
-      e.preventDefault(); stepChannel(+1); break;
+      // Update info bar
+      document.getElementById('now-name').textContent = ch.name;
+      document.getElementById('now-group').textContent = ch.group;
+      document.getElementById('infobar-url').textContent = ch.url.length > 60 ? ch.url.slice(0, 57) + '…' : ch.url;
 
-    // ── Play selected ────────────────────────────────────
-    case 'Enter':
-    case ' ':
-      if (inInput) break;
-      // If focus is on a channel item, play it
-      if (document.activeElement?.classList.contains('ch-item')) {
-        const id = parseInt(document.activeElement.dataset.id);
-        if (!isNaN(id)) playChannel(id);
+      showOSD(ch, id);
+      showIdle(false);
+      showSpinner(true);
+      showErr(false);
+      showLoadBar(true);
+
+      const video = document.getElementById('video');
+      if (hls) { hls.destroy(); hls = null; }
+
+      const url = ch.url;
+
+      if (Hls.isSupported()) {
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true, maxBufferLength: 30 });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          showSpinner(false); showLoadBar(false);
+          video.play().catch(() => { });
+        });
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            showSpinner(false); showLoadBar(false);
+            showErr(true, data.type, getErrHint(data.type));
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url;
+        video.addEventListener('loadedmetadata', () => {
+          showSpinner(false); showLoadBar(false);
+          video.play().catch(() => { });
+        }, { once: true });
+        video.addEventListener('error', () => {
+          showSpinner(false); showLoadBar(false);
+          showErr(true, 'Native error', getErrHint('mediaError'));
+        }, { once: true });
+      } else {
+        showSpinner(false); showLoadBar(false);
+        showErr(true, 'Unsupported', 'HLS is not supported in this browser.');
       }
-      break;
+    }
 
-    // ── Fullscreen ───────────────────────────────────────
-    case 'f':
-    case 'F':
-      if (inInput) break;
-      toggleFullscreen(); break;
+    function retryChannel() { if (lastActiveId > -1) playChannel(lastActiveId); }
 
-    // ── Menu (sidebar) ───────────────────────────────────
-    case 'm':
-    case 'M':
-    case 'Escape':
-      if (inInput && e.key !== 'Escape') break;
-      if (e.key === 'Escape') { closeSidebar(); break; }
-      toggleSidebar(); break;
+    function getErrHint(type) {
+      const m = {
+        networkError: 'Network error — the stream URL may be expired or the server is unreachable.',
+        mediaError: 'Media decode error — the stream format may be unsupported by your browser.',
+      };
+      return m[type] || 'Stream could not be loaded. Try another channel or check your proxy server.';
+    }
 
-    // ── TV back button ───────────────────────────────────
-    case 'Backspace':
-    case 'GoBack':
-      if (!inInput) { closeSidebar(); e.preventDefault(); }
-      break;
+    // ══════════════════════════════════════════════════════════
+    //  OSD
+    // ══════════════════════════════════════════════════════════
+    function showOSD(ch, id) {
+      const osd = document.getElementById('osd');
+      document.getElementById('osd-num').textContent = String(id + 1).padStart(3, '0');
+      document.getElementById('osd-name').textContent = ch.name;
+      document.getElementById('osd-group').textContent = ch.group;
+      osd.classList.add('visible');
+      clearTimeout(osdTimer);
+      osdTimer = setTimeout(() => osd.classList.remove('visible'), 3200);
+    }
 
-    // ── TV OK / Select ───────────────────────────────────
-    case 'MediaPlayPause':
-      document.getElementById('video').paused
-        ? document.getElementById('video').play()
-        : document.getElementById('video').pause();
-      break;
-  }
-});
+    // ══════════════════════════════════════════════════════════
+    //  UI HELPERS
+    // ══════════════════════════════════════════════════════════
+    function showIdle(on) { document.getElementById('idle').classList.toggle('gone', !on); }
+    function showSpinner(on) { document.getElementById('spinner').classList.toggle('show', on); }
+    function showLoadBar(on) { document.getElementById('load-bar').classList.toggle('loading', on); }
+    function showErr(on, msg, hint) {
+      const el = document.getElementById('err-overlay');
+      el.classList.toggle('show', on);
+      if (msg) document.getElementById('err-msg').textContent = msg;
+      if (hint) document.getElementById('err-hint').textContent = hint;
+    }
+    function setStatus(msg) {
+      document.getElementById('status-text').textContent = msg;
+    }
+    function scrollToActive() {
+      const el = document.querySelector('.ch-item.active');
+      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
 
-function stepChannel(dir) {
-  if (!filtered.length) return;
-  const idx  = filtered.findIndex(c => c.id === activeId);
-  const next = filtered[((idx + dir) + filtered.length) % filtered.length];
-  playChannel(next.id);
-}
+    // ══════════════════════════════════════════════════════════
+    //  SIDEBAR TOGGLE (mobile/TV)
+    // ══════════════════════════════════════════════════════════
+    function toggleSidebar() {
+      const s = document.getElementById('sidebar');
+      const ov = document.getElementById('sidebar-overlay');
+      const open = s.classList.toggle('open');
+      ov.classList.toggle('open', open);
+      if (open && filtered.length) {
+        const active = document.querySelector('.ch-item.active') || document.querySelector('.ch-item');
+        if (active) setTimeout(() => active.focus(), 50);
+      }
+    }
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebar-overlay').classList.remove('open');
+    }
 
-// ══════════════════════════════════════════════════════════
-//  TV MODE DETECTION
-//  Heuristic: large screen + no fine pointer
-// ══════════════════════════════════════════════════════════
-function detectTV() {
-  const bigScreen = window.innerWidth >= 1280 && window.innerHeight >= 720;
-  const coarsePtr = window.matchMedia('(pointer: coarse)').matches;
-  const noHover   = window.matchMedia('(hover: none)').matches;
-  tvMode = bigScreen && (coarsePtr || noHover);
-  document.body.classList.toggle('tv-mode', tvMode);
-  // On TV, make channel items tabbable by default
-  if (tvMode) {
-    document.getElementById('sidebar').classList.add('open');
-    document.getElementById('sidebar-overlay').classList.remove('open');
-  }
-}
-detectTV();
-window.addEventListener('resize', detectTV);
+    // ══════════════════════════════════════════════════════════
+    //  FULLSCREEN
+    // ══════════════════════════════════════════════════════════
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => { });
+      } else {
+        document.exitFullscreen();
+      }
+    }
 
-// ══════════════════════════════════════════════════════════
-//  PWA — SERVICE WORKER
-// ══════════════════════════════════════════════════════════
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
-}
+    // ══════════════════════════════════════════════════════════
+    //  FILE INPUT
+    // ══════════════════════════════════════════════════════════
+    document.getElementById('file-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const ch = parseM3U(ev.target.result);
+        if (!ch.length) { alert('No channels found in this M3U file.'); return; }
+        // Rewrite through proxy if server connected
+        const dot = document.getElementById('status-dot');
+        if (dot.classList.contains('online')) {
+          loadChannels(ch.map(c => ({
+            ...c,
+            url: `${PROXY_BASE()}/api/stream?url=${encodeURIComponent(c.url)}`,
+          })));
+        } else {
+          loadChannels(ch);
+        }
+        setStatus(`${ch.length} channels loaded`);
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
 
-// ══════════════════════════════════════════════════════════
-//  INIT
-// ══════════════════════════════════════════════════════════
-showIdle(true);
-// Auto-ping if server URL is pre-filled
-pingServer();
-// Load group tabs (empty)
-buildGroupTabs();
-</script>
+    // ══════════════════════════════════════════════════════════
+    //  KEYBOARD NAVIGATION
+    //  Supports: arrows, Enter, F (fullscreen), M (menu),
+    //            TV remote: OK/Select, Back, CH+/CH-
+    // ══════════════════════════════════════════════════════════
+    document.addEventListener('keydown', e => {
+      const tag = document.activeElement?.tagName;
+      const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+      switch (e.key) {
+
+        // ── Channel navigation ───────────────────────────────
+        case 'ArrowUp':
+        case 'ChannelUp':    // TV remote CH+
+          if (inInput) break;
+          e.preventDefault(); stepChannel(-1); break;
+
+        case 'ArrowDown':
+        case 'ChannelDown':  // TV remote CH-
+          if (inInput) break;
+          e.preventDefault(); stepChannel(+1); break;
+
+        // ── Play selected ────────────────────────────────────
+        case 'Enter':
+        case ' ':
+          if (inInput) break;
+          // If focus is on a channel item, play it
+          if (document.activeElement?.classList.contains('ch-item')) {
+            const id = parseInt(document.activeElement.dataset.id);
+            if (!isNaN(id)) playChannel(id);
+          }
+          break;
+
+        // ── Fullscreen ───────────────────────────────────────
+        case 'f':
+        case 'F':
+          if (inInput) break;
+          toggleFullscreen(); break;
+
+        // ── Menu (sidebar) ───────────────────────────────────
+        case 'm':
+        case 'M':
+        case 'Escape':
+          if (inInput && e.key !== 'Escape') break;
+          if (e.key === 'Escape') { closeSidebar(); break; }
+          toggleSidebar(); break;
+
+        // ── TV back button ───────────────────────────────────
+        case 'Backspace':
+        case 'GoBack':
+          if (!inInput) { closeSidebar(); e.preventDefault(); }
+          break;
+
+        // ── TV OK / Select ───────────────────────────────────
+        case 'MediaPlayPause':
+          document.getElementById('video').paused
+            ? document.getElementById('video').play()
+            : document.getElementById('video').pause();
+          break;
+      }
+    });
+
+    function stepChannel(dir) {
+      if (!filtered.length) return;
+      const idx = filtered.findIndex(c => c.id === activeId);
+      const next = filtered[((idx + dir) + filtered.length) % filtered.length];
+      playChannel(next.id);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  TV MODE DETECTION
+    //  Heuristic: large screen + no fine pointer
+    // ══════════════════════════════════════════════════════════
+    function detectTV() {
+      const bigScreen = window.innerWidth >= 1280 && window.innerHeight >= 720;
+      const coarsePtr = window.matchMedia('(pointer: coarse)').matches;
+      const noHover = window.matchMedia('(hover: none)').matches;
+      tvMode = bigScreen && (coarsePtr || noHover);
+      document.body.classList.toggle('tv-mode', tvMode);
+      // On TV, make channel items tabbable by default
+      if (tvMode) {
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('sidebar-overlay').classList.remove('open');
+      }
+    }
+    detectTV();
+    window.addEventListener('resize', detectTV);
+
+    // ══════════════════════════════════════════════════════════
+    //  PWA — SERVICE WORKER
+    // ══════════════════════════════════════════════════════════
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => { });
+      });
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  INIT
+    // ══════════════════════════════════════════════════════════
+    showIdle(true);
+    // Auto-ping if server URL is pre-filled
+    pingServer();
+    // Load group tabs (empty)
+    buildGroupTabs();
+  </script>
 </body>
+
 </html>
