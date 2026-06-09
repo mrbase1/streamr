@@ -1,7 +1,7 @@
 'use strict';
 
-const fastify = require('fastify')({ logger: true });
-const path    = require('path');
+const fastify = require('fastify')({ logger: true, trustProxy: true });
+const path = require('path');
 
 // ── PLUGINS ───────────────────────────────────────────────────────────────────
 fastify.register(require('@fastify/cors'), {
@@ -17,20 +17,20 @@ fastify.register(require('@fastify/static'), {
 fastify.register(require('@fastify/reply-from'), {
   undici: {
     connections: 128,
-    pipelining:  1,
+    pipelining: 1,
     keepAliveTimeout: 30_000,
   },
 });
 
 // ── RATE LIMITING (optional but recommended) ──────────────────────────────────
 fastify.register(require('@fastify/rate-limit'), {
-  max:         200,
+  max: 200,
   timeWindow: '1 minute',
 });
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 fastify.register(require('./routes/playlist'), { prefix: '/api' });
-fastify.register(require('./routes/stream'),   { prefix: '/api' });
+fastify.register(require('./routes/stream'), { prefix: '/api' });
 
 // ── HEALTH CHECK ──────────────────────────────────────────────────────────────
 fastify.get('/api/health', async () => ({ status: 'ok', ts: Date.now() }));
