@@ -1,6 +1,6 @@
 'use strict';
 
-const { URL }  = require('url');
+const { URL } = require('url');
 const { fetch } = require('undici');
 
 // Simple in-memory cache: url → { text, expires }
@@ -28,14 +28,14 @@ function setCached(key, text) {
  */
 function rewriteM3U(text, baseUrl, proxyBase) {
   const lines = text.split('\n');
-  const out   = [];
+  const out = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
     if (!line || line.startsWith('#EXTM3U') || line.startsWith('#EXTINF') ||
-        line.startsWith('#EXT-X-') || line.startsWith('#KODIPROP') ||
-        line.startsWith('#EXTVLCOPT')) {
+      line.startsWith('#EXT-X-') || line.startsWith('#KODIPROP') ||
+      line.startsWith('#EXTVLCOPT')) {
       out.push(lines[i]);
       continue;
     }
@@ -66,7 +66,7 @@ module.exports = async function playlistRoutes(fastify) {
       type: 'object',
       required: ['url'],
       properties: {
-        url:   { type: 'string', minLength: 10 },
+        url: { type: 'string', minLength: 10 },
         proxy: { type: 'string' }, // optional: override proxy base URL
       },
     },
@@ -92,8 +92,8 @@ module.exports = async function playlistRoutes(fastify) {
 
     // Derive proxy base: use explicit param, or infer from request
     const proxyBase = proxy ||
-      `${request.protocol}://${request.hostname}${request.hostname.includes('localhost') || /:\d+$/.test(request.hostname) ? '' : ''}` +
-      (request.port && request.port !== '80' && request.port !== '443' ? `:${request.port}` : '');
+      process.env.PUBLIC_URL ||
+      `${request.headers['x-forwarded-proto'] || request.protocol}://${request.headers['x-forwarded-host'] || request.hostname}`;
 
     // Check cache
     const cached = getCached(url);
@@ -109,7 +109,7 @@ module.exports = async function playlistRoutes(fastify) {
       const res = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; StreamrProxy/1.0)',
-          'Accept':     '*/*',
+          'Accept': '*/*',
         },
         signal: AbortSignal.timeout(15_000),
       });
