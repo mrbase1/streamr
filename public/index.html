@@ -1342,7 +1342,14 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
       const url = ch.url;
 
       if (Hls.isSupported()) {
-        hls = new Hls({ enableWorker: true, lowLatencyMode: true, maxBufferLength: 30 });
+        hls = new Hls({
+          enableWorker: true, lowLatencyMode: true, maxBufferLength: 30,
+          audioPreference: {
+            characteristics: 'public.accessibility.describes-video',
+            audioCodec: 'mp4a.40.2',
+          },
+          capLevelToPlayerSize: true,
+        });
         hls.loadSource(url);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -1351,6 +1358,11 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
         });
         hls.on(Hls.Events.ERROR, (_, data) => {
           if (data.fatal) {
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              // Try to recover before giving up
+              hls.recoverMediaError();
+              return;
+            }
             showSpinner(false); showLoadBar(false);
             showErr(true, data.type, getErrHint(data.type));
           }
