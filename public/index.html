@@ -1128,7 +1128,7 @@
       dot.className = 'dot';
       txt.textContent = 'Connecting…';
       try {
-        const res = await fetch(`${PROXY_BASE()}/api/health`, { signal: AbortSignal.timeout(4000) });
+        const res = await fetch(`${PROXY_BASE()}/api/health`, { signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 45000); return c.signal; })() });
         if (res.ok) {
           dot.className = 'dot online';
           txt.textContent = 'Connected';
