@@ -1098,91 +1098,86 @@
   </div>
 
   <script>
-    // ══════════════════════════════════════════════════════════
-    //  STATE
-    // ══════════════════════════════════════════════════════════
-    let allChannels = [];
-    let filtered = [];
-    let currentGroup = 'All';
-    let activeId = -1;
-    let lastActiveId = -1;
-    let hls = null;
-    let osdTimer = null;
-    let tvMode = false;
+    // ── COMPAT HELPERS ────────────────────────────────────
+    function makeAbortSignal(ms) {
+      var c = new AbortController();
+      setTimeout(function () { c.abort(); }, ms);
+      return c.signal;
+    }
 
-    const PROXY_BASE = () => {
-      const val = document.getElementById('server-url').value.trim() || 'http://localhost:3000';
-      // Force https when the page itself is served over https
-      if (location.protocol === 'https:' && val.startsWith('http:')) {
-        return val.replace('http://', 'https://').replace(/\/$/, '');
+    function proxyBase() {
+      var val = document.getElementById('server-url').value.trim() || 'http://localhost:3000';
+      if (location.protocol === 'https:' && val.indexOf('http:') === 0) {
+        val = val.replace('http://', 'https://');
       }
       return val.replace(/\/$/, '');
-    };
+    }
 
-    // ══════════════════════════════════════════════════════════
-    //  SERVER PING
-    // ══════════════════════════════════════════════════════════
-    async function pingServer() {
-      const dot = document.getElementById('status-dot');
-      const txt = document.getElementById('status-text');
+    // ── SERVER PING ───────────────────────────────────────
+    function pingServer() {
+      var dot = document.getElementById('status-dot');
+      var txt = document.getElementById('status-text');
       dot.className = 'dot';
       txt.textContent = 'Connecting…';
-      try {
-        const res = await fetch(`${PROXY_BASE()}/api/health`, { signal: AbortSignal.timeout(4000) });
-        if (res.ok) {
-          dot.className = 'dot online';
-          txt.textContent = 'Connected';
-        } else {
-          throw new Error(`HTTP ${res.status}`);
-        }
-      } catch (e) {
-        dot.className = 'dot error';
-        txt.textContent = 'Unreachable';
-      }
+      fetch(proxyBase() + '/api/health', { signal: makeAbortSignal(45000) })
+        .then(function (res) {
+          if (res.ok) {
+            dot.className = 'dot online';
+            txt.textContent = 'Connected';
+          } else {
+            throw new Error('HTTP ' + res.status);
+          }
+        })
+        .catch(function (e) {
+          dot.className = 'dot error';
+          txt.textContent = e.name === 'AbortError' ? 'Timed out' : 'Unreachable';
+        });
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  M3U — LOAD VIA SERVER PROXY
-    // ══════════════════════════════════════════════════════════
-    async function loadM3UFromServer() {
-      const url = document.getElementById('m3u-url').value.trim();
+    // ── LOAD M3U VIA SERVER ───────────────────────────────
+    function loadM3UFromServer() {
+      var url = document.getElementById('m3u-url').value.trim();
       if (!url) return;
       setStatus('Fetching playlist…');
-      try {
-        const res = await fetch(`${PROXY_BASE()}/api/playlist?url=${encodeURIComponent(url)}`);
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Server error ${res.status}`);
-        }
-        const text = await res.text();
-        const ch = parseM3U(text);
-        if (!ch.length) throw new Error('No channels found in playlist');
-        loadChannels(ch);
-        document.getElementById('m3u-url').value = '';
-      } catch (e) {
-        setStatus('Error: ' + e.message);
-        alert('Could not load playlist:\n' + e.message);
-      }
+      fetch(proxyBase() + '/api/playlist?url=' + encodeURIComponent(url), {
+        signal: makeAbortSignal(45000)
+      })
+        .then(function (res) {
+          if (!res.ok) {
+            return res.json().catch(function () { return {}; }).then(function (err) {
+              throw new Error(err.error || 'Server error ' + res.status);
+            });
+          }
+          return res.text();
+        })
+        .then(function (text) {
+          var ch = parseM3U(text);
+          if (!ch.length) throw new Error('No channels found in playlist');
+          loadChannels(ch);
+          document.getElementById('m3u-url').value = '';
+        })
+        .catch(function (e) {
+          setStatus('Error: ' + e.message);
+          alert('Could not load playlist:\n' + e.message);
+        });
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  M3U — PARSE
-    // ══════════════════════════════════════════════════════════
+    // ── M3U PARSER ────────────────────────────────────────
     function parseM3U(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-      const out = [];
-      let cur = null;
-
-      for (const line of lines) {
-        if (line.startsWith('#EXTINF:')) {
+      var lines = text.split('\n');
+      var out = [];
+      var cur = null;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (line.indexOf('#EXTINF:') === 0) {
           cur = { name: '', group: 'General', logo: '', url: '' };
-          const ci = line.lastIndexOf(',');
+          var ci = line.lastIndexOf(',');
           if (ci > -1) cur.name = line.slice(ci + 1).trim();
-          const gm = line.match(/group-title="([^"]*)"/i);
+          var gm = line.match(/group-title="([^"]*)"/i);
           if (gm) cur.group = gm[1].trim() || 'General';
-          const lm = line.match(/tvg-logo="([^"]*)"/i);
+          var lm = line.match(/tvg-logo="([^"]*)"/i);
           if (lm) cur.logo = lm[1].trim();
-        } else if (cur && !line.startsWith('#')) {
+        } else if (cur && line.indexOf('#') !== 0 && line.length > 0) {
           cur.url = line;
           out.push(cur);
           cur = null;
@@ -1191,47 +1186,26 @@
       return out;
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  DEMO CHANNELS (loaded via proxy — public streams)
-    // ══════════════════════════════════════════════════════════
-    const DEMO_M3U = `#EXTM3U
-#EXTINF:-1 group-title="News" tvg-logo="",BBC World News
-https://vs-hls-push-ww-live.akamaized.net/x=4/i=urn:bbc:pcs:akamai:eu-west-1:5983af87-4638-4a6a-a244-e4935a3aa9af/iptv/bbc_world_news_hd/live/ak/video=5500000.m3u8
-#EXTINF:-1 group-title="News" tvg-logo="",DW English
-https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8
-#EXTINF:-1 group-title="News" tvg-logo="",France 24 English
-https://stream.france24.com/hls/live/2037198/F24_EN_HI_HLS/master.m3u8
-#EXTINF:-1 group-title="News" tvg-logo="",Al Jazeera English
-https://live-hls-web-aje.getaj.net/AJE/index.m3u8
-#EXTINF:-1 group-title="Science" tvg-logo="",NASA TV
-https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8
-#EXTINF:-1 group-title="Sport" tvg-logo="",Red Bull TV
-https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8
-#EXTINF:-1 group-title="Kids" tvg-logo="",Baby TV
-https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
+    // ── DEMO CHANNELS ─────────────────────────────────────
+    var DEMO_M3U = '#EXTM3U\n#EXTINF:-1 group-title="News" tvg-logo="",BBC World News\nhttps://vs-hls-push-ww-live.akamaized.net/x=4/i=urn:bbc:pcs:akamai:eu-west-1:5983af87-4638-4a6a-a244-e4935a3aa9af/iptv/bbc_world_news_hd/live/ak/video=5500000.m3u8\n#EXTINF:-1 group-title="News" tvg-logo="",DW English\nhttps://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8\n#EXTINF:-1 group-title="News" tvg-logo="",France 24 English\nhttps://stream.france24.com/hls/live/2037198/F24_EN_HI_HLS/master.m3u8\n#EXTINF:-1 group-title="News" tvg-logo="",Al Jazeera English\nhttps://live-hls-web-aje.getaj.net/AJE/index.m3u8\n#EXTINF:-1 group-title="Science" tvg-logo="",NASA TV\nhttps://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8\n#EXTINF:-1 group-title="Sport" tvg-logo="",Red Bull TV\nhttps://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8\n#EXTINF:-1 group-title="Kids" tvg-logo="",Baby TV\nhttps://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8';
 
     function loadDemo() {
-      // When a server is connected, route through proxy; otherwise load direct
-      const ch = parseM3U(DEMO_M3U);
-      // Rewrite URLs to go through proxy if server is connected
-      const dot = document.getElementById('status-dot');
+      var ch = parseM3U(DEMO_M3U);
+      var dot = document.getElementById('status-dot');
       if (dot.classList.contains('online')) {
-        const rewritten = ch.map(c => ({
-          ...c,
-          url: `${PROXY_BASE()}/api/stream?url=${encodeURIComponent(c.url)}`,
-        }));
-        loadChannels(rewritten);
-      } else {
-        loadChannels(ch);
+        ch = ch.map(function (c) {
+          return Object.assign({}, c, {
+            url: proxyBase() + '/api/stream?url=' + encodeURIComponent(c.url)
+          });
+        });
       }
+      loadChannels(ch);
       setStatus('Demo loaded');
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  LOAD / RENDER CHANNELS
-    // ══════════════════════════════════════════════════════════
+    // ── LOAD / RENDER CHANNELS ────────────────────────────
     function loadChannels(channels) {
-      allChannels = channels.map((c, i) => ({ ...c, id: i }));
+      allChannels = channels.map(function (c, i) { return Object.assign({}, c, { id: i }); });
       currentGroup = 'All';
       activeId = -1;
       filterChannels();
@@ -1239,72 +1213,73 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
     }
 
     function buildGroupTabs() {
-      const groups = ['All', ...new Set(allChannels.map(c => c.group))];
-      const el = document.getElementById('group-scroll');
+      var groups = ['All'];
+      allChannels.forEach(function (c) {
+        if (groups.indexOf(c.group) === -1) groups.push(c.group);
+      });
+      var el = document.getElementById('group-scroll');
       el.innerHTML = '';
-      groups.forEach(g => {
-        const btn = document.createElement('button');
+      groups.forEach(function (g) {
+        var btn = document.createElement('button');
         btn.className = 'g-tab' + (g === currentGroup ? ' active' : '');
         btn.textContent = g;
-        btn.role = 'tab';
-        btn.setAttribute('aria-selected', g === currentGroup);
-        btn.onclick = () => setGroup(g, btn);
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', g === currentGroup ? 'true' : 'false');
+        btn.onclick = function () { setGroup(g, btn); };
         el.appendChild(btn);
       });
     }
 
     function setGroup(g, el) {
       currentGroup = g;
-      document.querySelectorAll('.g-tab').forEach(t => {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
-      });
+      var tabs = document.querySelectorAll('.g-tab');
+      for (var i = 0; i < tabs.length; i++) {
+        tabs[i].classList.remove('active');
+        tabs[i].setAttribute('aria-selected', 'false');
+      }
       el.classList.add('active');
       el.setAttribute('aria-selected', 'true');
       filterChannels();
     }
 
     function filterChannels() {
-      const q = document.getElementById('search').value.toLowerCase();
-      filtered = allChannels.filter(c => {
-        const mg = currentGroup === 'All' || c.group === currentGroup;
-        const ms = !q || c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q);
+      var q = document.getElementById('search').value.toLowerCase();
+      filtered = allChannels.filter(function (c) {
+        var mg = currentGroup === 'All' || c.group === currentGroup;
+        var ms = !q || c.name.toLowerCase().indexOf(q) > -1 || c.group.toLowerCase().indexOf(q) > -1;
         return mg && ms;
       });
       renderChannels();
     }
 
     function renderChannels() {
-      const list = document.getElementById('ch-list');
+      var list = document.getElementById('ch-list');
       if (!filtered.length) {
-        list.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No channels match your search.</p></div>`;
+        list.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>No channels match your search.</p></div>';
         return;
       }
       list.innerHTML = '';
-      filtered.forEach((c, i) => {
-        const div = document.createElement('div');
+      filtered.forEach(function (c) {
+        var div = document.createElement('div');
         div.className = 'ch-item' + (c.id === activeId ? ' active' : '');
-        div.role = 'option';
+        div.setAttribute('role', 'option');
         div.tabIndex = 0;
-        div.setAttribute('aria-selected', c.id === activeId);
+        div.setAttribute('aria-selected', c.id === activeId ? 'true' : 'false');
         div.dataset.id = c.id;
-
-        const initials = c.name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?';
-        div.innerHTML = `
-      <div class="ch-logo">
-        ${c.logo
-            ? `<img src="${c.logo}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"><span class="ch-logo-txt" style="display:none">${initials}</span>`
-            : `<span class="ch-logo-txt">${initials}</span>`
-          }
-      </div>
-      <div class="ch-info">
-        <div class="ch-name">${escHtml(c.name)}</div>
-        <div class="ch-group">${escHtml(c.group)}</div>
-      </div>
-      <div class="ch-num">${String(c.id + 1).padStart(3, '0')}</div>`;
-
-        div.onclick = () => playChannel(c.id);
-        div.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playChannel(c.id); } };
+        var initials = c.name.split(' ').slice(0, 2).map(function (w) { return w[0] || ''; }).join('').toUpperCase() || '?';
+        div.innerHTML =
+          '<div class="ch-logo">' +
+          (c.logo
+            ? '<img src="' + c.logo + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" loading="lazy"><span class="ch-logo-txt" style="display:none">' + initials + '</span>'
+            : '<span class="ch-logo-txt">' + initials + '</span>') +
+          '</div>' +
+          '<div class="ch-info">' +
+          '<div class="ch-name">' + escHtml(c.name) + '</div>' +
+          '<div class="ch-group">' + escHtml(c.group) + '</div>' +
+          '</div>' +
+          '<div class="ch-num">' + String(c.id + 1).padStart(3, '0') + '</div>';
+        div.onclick = (function (id) { return function () { playChannel(id); }; })(c.id);
+        div.onkeydown = (function (id) { return function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playChannel(id); } }; })(c.id);
         list.appendChild(div);
       });
     }
@@ -1313,22 +1288,26 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
       return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  PLAYBACK
-    // ══════════════════════════════════════════════════════════
+    // ── PLAYBACK ──────────────────────────────────────────
+    var recoveryAttempts = 0;
+
     function playChannel(id) {
-      const ch = allChannels.find(c => c.id === id);
+      var ch = null;
+      for (var i = 0; i < allChannels.length; i++) {
+        if (allChannels[i].id === id) { ch = allChannels[i]; break; }
+      }
       if (!ch) return;
 
       lastActiveId = id;
       activeId = id;
+      recoveryAttempts = 0;
       renderChannels();
       scrollToActive();
 
-      // Update info bar
       document.getElementById('now-name').textContent = ch.name;
       document.getElementById('now-group').textContent = ch.group;
-      document.getElementById('infobar-url').textContent = ch.url.length > 60 ? ch.url.slice(0, 57) + '…' : ch.url;
+      document.getElementById('infobar-url').textContent =
+        ch.url.length > 60 ? ch.url.slice(0, 57) + '…' : ch.url;
 
       showOSD(ch, id);
       showIdle(false);
@@ -1336,66 +1315,62 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
       showErr(false);
       showLoadBar(true);
 
-      const video = document.getElementById('video');
+      var video = document.getElementById('video');
       if (hls) { hls.destroy(); hls = null; }
 
-      const url = ch.url;
+      var url = ch.url;
 
       if (Hls.isSupported()) {
         hls = new Hls({
-          enableWorker: true, lowLatencyMode: true, maxBufferLength: 30,
-          audioPreference: {
-            characteristics: 'public.accessibility.describes-video',
-            audioCodec: 'mp4a.40.2',
-          },
+          enableWorker: true,
+          lowLatencyMode: true,
+          maxBufferLength: 30,
           capLevelToPlayerSize: true,
         });
         hls.loadSource(url);
         hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          showSpinner(false); showLoadBar(false);
-          video.play().catch(() => { });
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          showSpinner(false);
+          showLoadBar(false);
+          video.play().catch(function () { });
         });
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (data.response?.code === 403 && url.includes('/api/stream')) {
-            // Extract the original URL and try direct (may still fail due to CORS)
-            const orig = new URL(url).searchParams.get('url');
+        hls.on(Hls.Events.ERROR, function (_, data) {
+          if (!data.fatal) return;
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && recoveryAttempts < 3) {
+            recoveryAttempts++;
+            if (recoveryAttempts === 1) {
+              hls.recoverMediaError();
+            } else {
+              hls.swapAudioCodec();
+              hls.recoverMediaError();
+            }
+            return;
+          }
+          showSpinner(false);
+          showLoadBar(false);
+          if (data.response && data.response.code === 403) {
+            var orig = new URL(url).searchParams.get('url');
             if (orig) {
               hls.destroy();
               hls = new Hls({ enableWorker: true, lowLatencyMode: true });
               hls.loadSource(orig);
               hls.attachMedia(video);
-              hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              hls.on(Hls.Events.MANIFEST_PARSED, function () {
                 showSpinner(false); showLoadBar(false);
-                video.play().catch(() => { });
+                video.play().catch(function () { });
               });
-            }
-            return;
-          }
-
-          if (data.fatal) {
-            if (data.type === Hls.ErrorTypes.MEDIA_ERROR && recoveryAttempts < 3) {
-              recoveryAttempts++;
-              if (recoveryAttempts === 1) {
-                hls.recoverMediaError();
-              } else {
-                // Swap the media element entirely — clears codec state
-                hls.swapAudioCodec();
-                hls.recoverMediaError();
-              }
               return;
             }
-            showSpinner(false); showLoadBar(false);
-            showErr(true, data.type, getErrHint(data.type));
           }
+          showErr(true, data.type, getErrHint(data.type));
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = url;
-        video.addEventListener('loadedmetadata', () => {
+        video.addEventListener('loadedmetadata', function () {
           showSpinner(false); showLoadBar(false);
-          video.play().catch(() => { });
+          video.play().catch(function () { });
         }, { once: true });
-        video.addEventListener('error', () => {
+        video.addEventListener('error', function () {
           showSpinner(false); showLoadBar(false);
           showErr(true, 'Native error', getErrHint('mediaError'));
         }, { once: true });
@@ -1405,38 +1380,35 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
       }
     }
 
-    function retryChannel() { if (lastActiveId > -1) playChannel(lastActiveId); }
+    function retryChannel() {
+      if (lastActiveId > -1) playChannel(lastActiveId);
+    }
 
     function getErrHint(type) {
-      const m = {
+      var m = {
         networkError: 'Network error — the stream URL may be expired or the server is unreachable.',
         mediaError: 'Media decode error — the stream format may be unsupported by your browser.',
       };
       return m[type] || 'Stream could not be loaded. Try another channel or check your proxy server.';
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  OSD
-    // ══════════════════════════════════════════════════════════
+    // ── OSD ───────────────────────────────────────────────
     function showOSD(ch, id) {
-      const osd = document.getElementById('osd');
+      var osd = document.getElementById('osd');
       document.getElementById('osd-num').textContent = String(id + 1).padStart(3, '0');
       document.getElementById('osd-name').textContent = ch.name;
       document.getElementById('osd-group').textContent = ch.group;
       osd.classList.add('visible');
       clearTimeout(osdTimer);
-      osdTimer = setTimeout(() => osd.classList.remove('visible'), 3200);
+      osdTimer = setTimeout(function () { osd.classList.remove('visible'); }, 3200);
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  UI HELPERS
-    // ══════════════════════════════════════════════════════════
+    // ── UI HELPERS ────────────────────────────────────────
     function showIdle(on) { document.getElementById('idle').classList.toggle('gone', !on); }
     function showSpinner(on) { document.getElementById('spinner').classList.toggle('show', on); }
     function showLoadBar(on) { document.getElementById('load-bar').classList.toggle('loading', on); }
     function showErr(on, msg, hint) {
-      const el = document.getElementById('err-overlay');
-      el.classList.toggle('show', on);
+      document.getElementById('err-overlay').classList.toggle('show', on);
       if (msg) document.getElementById('err-msg').textContent = msg;
       if (hint) document.getElementById('err-hint').textContent = hint;
     }
@@ -1444,21 +1416,19 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
       document.getElementById('status-text').textContent = msg;
     }
     function scrollToActive() {
-      const el = document.querySelector('.ch-item.active');
+      var el = document.querySelector('.ch-item.active');
       if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  SIDEBAR TOGGLE (mobile/TV)
-    // ══════════════════════════════════════════════════════════
+    // ── SIDEBAR ───────────────────────────────────────────
     function toggleSidebar() {
-      const s = document.getElementById('sidebar');
-      const ov = document.getElementById('sidebar-overlay');
-      const open = s.classList.toggle('open');
+      var s = document.getElementById('sidebar');
+      var ov = document.getElementById('sidebar-overlay');
+      var open = s.classList.toggle('open');
       ov.classList.toggle('open', open);
       if (open && filtered.length) {
-        const active = document.querySelector('.ch-item.active') || document.querySelector('.ch-item');
-        if (active) setTimeout(() => active.focus(), 50);
+        var active = document.querySelector('.ch-item.active') || document.querySelector('.ch-item');
+        if (active) setTimeout(function () { active.focus(); }, 50);
       }
     }
     function closeSidebar() {
@@ -1466,123 +1436,87 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
       document.getElementById('sidebar-overlay').classList.remove('open');
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  FULLSCREEN
-    // ══════════════════════════════════════════════════════════
+    // ── FULLSCREEN ────────────────────────────────────────
     function toggleFullscreen() {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => { });
+        document.documentElement.requestFullscreen().catch(function () { });
       } else {
         document.exitFullscreen();
       }
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  FILE INPUT
-    // ══════════════════════════════════════════════════════════
-    document.getElementById('file-input').addEventListener('change', e => {
-      const file = e.target.files[0];
+    // ── FILE INPUT ────────────────────────────────────────
+    document.getElementById('file-input').addEventListener('change', function (e) {
+      var file = e.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const ch = parseM3U(ev.target.result);
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        var ch = parseM3U(ev.target.result);
         if (!ch.length) { alert('No channels found in this M3U file.'); return; }
-        // Rewrite through proxy if server connected
-        const dot = document.getElementById('status-dot');
+        var dot = document.getElementById('status-dot');
         if (dot.classList.contains('online')) {
-          loadChannels(ch.map(c => ({
-            ...c,
-            url: `${PROXY_BASE()}/api/stream?url=${encodeURIComponent(c.url)}`,
-          })));
-        } else {
-          loadChannels(ch);
+          ch = ch.map(function (c) {
+            return Object.assign({}, c, {
+              url: proxyBase() + '/api/stream?url=' + encodeURIComponent(c.url)
+            });
+          });
         }
-        setStatus(`${ch.length} channels loaded`);
+        loadChannels(ch);
+        setStatus(ch.length + ' channels loaded');
       };
       reader.readAsText(file);
       e.target.value = '';
     });
 
-    // ══════════════════════════════════════════════════════════
-    //  KEYBOARD NAVIGATION
-    //  Supports: arrows, Enter, F (fullscreen), M (menu),
-    //            TV remote: OK/Select, Back, CH+/CH-
-    // ══════════════════════════════════════════════════════════
-    document.addEventListener('keydown', e => {
-      const tag = document.activeElement?.tagName;
-      const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
+    // ── KEYBOARD / REMOTE NAV ─────────────────────────────
+    document.addEventListener('keydown', function (e) {
+      var tag = document.activeElement && document.activeElement.tagName;
+      var inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
       switch (e.key) {
-
-        // ── Channel navigation ───────────────────────────────
         case 'ArrowUp':
-        case 'ChannelUp':    // TV remote CH+
+        case 'ChannelUp':
           if (inInput) break;
           e.preventDefault(); stepChannel(-1); break;
-
         case 'ArrowDown':
-        case 'ChannelDown':  // TV remote CH-
+        case 'ChannelDown':
           if (inInput) break;
-          e.preventDefault(); stepChannel(+1); break;
-
-        // ── Play selected ────────────────────────────────────
+          e.preventDefault(); stepChannel(1); break;
         case 'Enter':
         case ' ':
           if (inInput) break;
-          // If focus is on a channel item, play it
-          if (document.activeElement?.classList.contains('ch-item')) {
-            const id = parseInt(document.activeElement.dataset.id);
+          if (document.activeElement && document.activeElement.classList.contains('ch-item')) {
+            var id = parseInt(document.activeElement.dataset.id);
             if (!isNaN(id)) playChannel(id);
           }
           break;
-
-        // ── Fullscreen ───────────────────────────────────────
-        case 'f':
-        case 'F':
-          if (inInput) break;
-          toggleFullscreen(); break;
-
-        // ── Menu (sidebar) ───────────────────────────────────
-        case 'm':
-        case 'M':
-        case 'Escape':
-          if (inInput && e.key !== 'Escape') break;
-          if (e.key === 'Escape') { closeSidebar(); break; }
-          toggleSidebar(); break;
-
-        // ── TV back button ───────────────────────────────────
-        case 'Backspace':
-        case 'GoBack':
-          if (!inInput) { closeSidebar(); e.preventDefault(); }
-          break;
-
-        // ── TV OK / Select ───────────────────────────────────
+        case 'f': case 'F': if (!inInput) toggleFullscreen(); break;
+        case 'm': case 'M': if (!inInput) toggleSidebar(); break;
+        case 'Escape': case 'GoBack': closeSidebar(); break;
+        case 'Backspace': if (!inInput) { closeSidebar(); e.preventDefault(); } break;
         case 'MediaPlayPause':
-          document.getElementById('video').paused
-            ? document.getElementById('video').play()
-            : document.getElementById('video').pause();
-          break;
+          var v = document.getElementById('video');
+          v.paused ? v.play() : v.pause(); break;
       }
     });
 
     function stepChannel(dir) {
       if (!filtered.length) return;
-      const idx = filtered.findIndex(c => c.id === activeId);
-      const next = filtered[((idx + dir) + filtered.length) % filtered.length];
+      var idx = -1;
+      for (var i = 0; i < filtered.length; i++) {
+        if (filtered[i].id === activeId) { idx = i; break; }
+      }
+      var next = filtered[((idx + dir) + filtered.length) % filtered.length];
       playChannel(next.id);
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  TV MODE DETECTION
-    //  Heuristic: large screen + no fine pointer
-    // ══════════════════════════════════════════════════════════
+    // ── TV MODE ───────────────────────────────────────────
     function detectTV() {
-      const bigScreen = window.innerWidth >= 1280 && window.innerHeight >= 720;
-      const coarsePtr = window.matchMedia('(pointer: coarse)').matches;
-      const noHover = window.matchMedia('(hover: none)').matches;
+      var bigScreen = window.innerWidth >= 1280 && window.innerHeight >= 720;
+      var coarsePtr = window.matchMedia('(pointer: coarse)').matches;
+      var noHover = window.matchMedia('(hover: none)').matches;
       tvMode = bigScreen && (coarsePtr || noHover);
       document.body.classList.toggle('tv-mode', tvMode);
-      // On TV, make channel items tabbable by default
       if (tvMode) {
         document.getElementById('sidebar').classList.add('open');
         document.getElementById('sidebar-overlay').classList.remove('open');
@@ -1591,22 +1525,16 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
     detectTV();
     window.addEventListener('resize', detectTV);
 
-    // ══════════════════════════════════════════════════════════
-    //  PWA — SERVICE WORKER
-    // ══════════════════════════════════════════════════════════
+    // ── PWA ───────────────────────────────────────────────
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => { });
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').catch(function () { });
       });
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  INIT
-    // ══════════════════════════════════════════════════════════
+    // ── INIT ──────────────────────────────────────────────
     showIdle(true);
-    // Auto-ping if server URL is pre-filled
     pingServer();
-    // Load group tabs (empty)
     buildGroupTabs();
   </script>
 </body>
