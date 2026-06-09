@@ -1357,10 +1357,32 @@ https://nmxlive.akamaized.net/hls/live/529965/Live_1/index.m3u8`;
           video.play().catch(() => { });
         });
         hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.response?.code === 403 && url.includes('/api/stream')) {
+            // Extract the original URL and try direct (may still fail due to CORS)
+            const orig = new URL(url).searchParams.get('url');
+            if (orig) {
+              hls.destroy();
+              hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+              hls.loadSource(orig);
+              hls.attachMedia(video);
+              hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                showSpinner(false); showLoadBar(false);
+                video.play().catch(() => { });
+              });
+            }
+            return;
+          }
+
           if (data.fatal) {
-            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              // Try to recover before giving up
-              hls.recoverMediaError();
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR && recoveryAttempts < 3) {
+              recoveryAttempts++;
+              if (recoveryAttempts === 1) {
+                hls.recoverMediaError();
+              } else {
+                // Swap the media element entirely — clears codec state
+                hls.swapAudioCodec();
+                hls.recoverMediaError();
+              }
               return;
             }
             showSpinner(false); showLoadBar(false);
